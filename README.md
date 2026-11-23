@@ -14,6 +14,9 @@ python scripts/setup_screen.py                                                  
 python scripts/record_demo.py configs/evals/sponge_dream.yaml --seed 1004 --level pose        # annotated video
 ```
 
+Every run ends with a simple score: **SUCCESS/FAILURE** per episode, why it ended (task completed, failure
+condition, time limit), and **how many of the task's stages were hit** (e.g. `3/6`), plus the totals for the run.
+
 Outputs land in `runs/<name>/`: `config.json` (everything that defined the run), one `episode_XXX.json` (metrics,
 stage times, sampled scene parameters, seed) and `episode_XXX.mp4` (all cameras, as the policy saw them) per episode,
 and `summary.json` (aggregates with confidence intervals).
@@ -51,7 +54,8 @@ simeval/
   registry.py                 names -> classes; any "module:Class" also works
 scripts/run_eval.py           CLI
 scripts/setup_screen.py       setup screen: build a scene, define metrics / stages / end conditions, preview, save
-scripts/record_demo.py        annotated episode video: scene description card, overview + policy cameras, live stages and metrics
+scripts/record_demo.py        annotated episode video (overview + policy cameras, live stages and metrics) and a
+                              .metadata.json describing the run (robot, objects and sampled values, metrics, result)
 tests/                        scoring and swap checks
 ```
 
