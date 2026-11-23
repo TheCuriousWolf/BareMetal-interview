@@ -116,7 +116,7 @@ def run_eval(env, policy, episodes: int, seed: int, level: str, out_dir: Path, l
         log(f"  episode {ep + 1}/{episodes} seed={s} level={level}")
         r = run_episode(env, policy, s, level, latency_mode, out_dir / f"episode_{ep:03d}.mp4" if video else None, log)
         m = r["metrics"]
-        log(f"    {r['outcome']}  cleaned={m.get('cleaned_fraction', 0):.2f} progress={m['progress']:.2f} "
+        log(f"    {r['outcome']}  progress={m['progress']:.2f} "
             f"stages={[k for k, v in m['stage_times'].items() if v is not None]} queries={m['queries']}")
         (out_dir / f"episode_{ep:03d}.json").write_text(json.dumps(r, indent=2, default=float))
         results.append(r)

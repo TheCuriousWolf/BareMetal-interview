@@ -9,8 +9,7 @@ from __future__ import annotations
 import importlib
 
 TASKS = {
-    "sponge_scrub": "simeval.tasks.sponge_scrub:SpongeScrubTask",
-    "pick_place": "simeval.tasks.pick_place:PickPlaceTask",
+    "yaml": "simeval.tasks.task:Task",  # default: scene + metrics + stages + end conditions from YAML
 }
 POLICIES = {
     "dreamlabs": "simeval.policies.dreamlabs:DreamLabsPolicy",
@@ -28,7 +27,7 @@ def resolve(name: str, table: dict[str, str]):
 
 
 def make_task(cfg: dict):
-    return resolve(cfg["task"], TASKS)(cfg)
+    return resolve(cfg.get("task_class", "yaml"), TASKS)(cfg)
 
 
 def make_policy(cfg: dict):

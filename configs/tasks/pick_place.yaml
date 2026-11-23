@@ -1,5 +1,24 @@
-task: pick_place
+name: pick_place
 scene: table_pick_place.yaml
 instruction: "put the red cube on the blue circle"
 max_seconds: 60
-scene_overrides: {}
+scene_overrides: {}       # e.g. {objects: {cube: {xy: {nominal: [-0.1, 0.0]}}}}
+
+metrics:
+  eef_to_cube:    {type: distance, a: robot.any.eef, b: cube}
+  cube_held:      {type: grasped, object: cube}
+  cube_height:    {type: height, object: cube}
+  cube_to_target: {type: distance, a: cube, b: target}
+  cube_in_target: {type: in_region, object: cube, region: target}
+  cube_moved:     {type: moved, object: cube}
+
+stages:
+  - {name: reached,     when: eef_to_cube < 0.05}
+  - {name: grasped,     when: cube_held > 0}
+  - {name: lifted,      when: cube_held > 0 and cube_height > 0.03}
+  - {name: over_target, when: cube_in_target > 0}
+  - {name: placed,      when: cube_in_target > 0 and cube_held < 1 and cube_height < 0.01, hold_for: 0.5}
+
+end:
+  success: cube_in_target > 0 and cube_held < 1 and cube_height < 0.01
+  failure: cube_height < -0.05

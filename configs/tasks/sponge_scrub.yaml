@@ -1,5 +1,31 @@
-task: sponge_scrub
+# Scene + evaluation for the sponge task. Edit by hand or with the setup screen (scripts/setup_screen.py).
+name: sponge_scrub
 scene: counter_sponge.yaml
 instruction: "pick up the sponge and scrub the stain off the counter"
 max_seconds: 90
-scene_overrides: {}      # e.g. {sponge: {start_xy: {nominal: [-0.1, 0.05]}}}
+scene_overrides: {}
+
+metrics:
+  eef_to_sponge:        {type: distance, a: robot.any.eef, b: sponge}
+  gripper_sponge_time:  {type: contact_time, a: robot.any.gripper, b: sponge}
+  sponge_held:          {type: grasped, object: sponge}
+  sponge_held_time:     {type: grasp_time, object: sponge}
+  sponge_height:        {type: height, object: sponge}
+  sponge_on_stain:      {type: distance, a: sponge.bottom, b: stain}
+  sponge_press:         {type: force, a: sponge, b: counter}
+  stain_cleaned:        {type: value, object: stain, key: cleaned}
+  stain_remaining:      {type: value, object: stain, key: remaining}
+  robot_counter_force:  {type: force, a: robot.all, b: counter}
+  arms_touching:        {type: contact_time, a: robot.left, b: robot.right}
+
+stages:
+  - {name: reached,       when: eef_to_sponge < 0.06}
+  - {name: grasped,       when: sponge_held > 0}
+  - {name: lifted,        when: sponge_held > 0 and sponge_height > 0.02}
+  - {name: stain_contact, when: stain_remaining < 1.0}
+  - {name: half_clean,    when: stain_cleaned >= 0.5}
+  - {name: clean,         when: stain_cleaned >= 0.8}
+
+end:
+  success: stain_cleaned >= 0.8
+  failure: sponge_height < -0.05        # sponge fell off the counter

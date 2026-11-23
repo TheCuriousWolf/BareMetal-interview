@@ -41,7 +41,7 @@ def summarize(episodes: list[dict], stages: list[str]) -> dict:
             for s in stages
         },
     }
-    skip = {"success", "progress", "stage_times"}
+    skip = {"success", "failure", "progress", "stage_times"}
     for key in m[0]:
         if key not in skip:
             s = stat(key)
