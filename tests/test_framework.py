@@ -22,7 +22,7 @@ def cfg(path):
 
 def sponge_env(require_grasp=True, robot="configs/robots/yam_bimanual.yaml"):
     t = cfg("configs/tasks/sponge_scrub.yaml")
-    t["scene_overrides"] = {"scoring": {"require_grasp": require_grasp}}
+    t["scene_overrides"] = {"objects": {"stain": {"require_grasp": require_grasp}}}
     env = SimEnv(cfg(robot), make_task(t))
     env.reset(seed=0, level="none")
     return env
@@ -31,16 +31,17 @@ def sponge_env(require_grasp=True, robot="configs/robots/yam_bimanual.yaml"):
 def scrub(env, press_newtons, strokes=6):
     """Drive the sponge back and forth across the stain, optionally pushing it down."""
     m, d, task = env.model, env.data, env.task
+    sponge, stain = task.objects["sponge"], task.objects["stain"]
     jnt = m.joint("sponge_free")
     adr, dof = jnt.qposadr[0], jnt.dofadr[0]
-    cx, cy = task.cell_centers.mean(axis=0)
-    z = task.counter_top + task.sponge_half[2]
+    cx, cy = stain.cells.mean(axis=0)
+    z = stain.top + sponge.size[2]
     for k in range(strokes * 20):
         x = cx + 0.05 * np.sin(k / 20 * np.pi)
         d.qpos[adr : adr + 3] = [x, cy, z]
         d.qpos[adr + 3 : adr + 7] = [1, 0, 0, 0]
         d.qvel[dof : dof + 6] = 0
-        d.xfrc_applied[task.sponge_id] = [0, 0, -press_newtons, 0, 0, 0]
+        d.xfrc_applied[m.body("sponge").id] = [0, 0, -press_newtons, 0, 0, 0]
         env.hold()
     return task.metrics()
 
@@ -48,12 +49,12 @@ def scrub(env, press_newtons, strokes=6):
 def test_scrubbing_needs_pressure_and_motion():
     pressed = scrub(sponge_env(require_grasp=False), press_newtons=5.0)
     light = scrub(sponge_env(require_grasp=False), press_newtons=0.0)
-    assert pressed["dirt_removed"] > 0.2 and pressed["stage_times"]["stain_contact"] is not None
-    assert light["dirt_removed"] == 0.0  # resting weight alone is below min_press_force
+    assert pressed["stain_remaining"] < 0.8 and pressed["stage_times"]["stain_contact"] is not None
+    assert light["stain_remaining"] == 1.0  # resting weight alone is below min_press_force
 
 
 def test_loose_sponge_does_not_count_when_grasp_required():
-    assert scrub(sponge_env(require_grasp=True), press_newtons=5.0)["dirt_removed"] == 0.0
+    assert scrub(sponge_env(require_grasp=True), press_newtons=5.0)["stain_remaining"] == 1.0
 
 
 def test_hold_policy_scores_zero():
@@ -99,4 +100,33 @@ def test_pick_place_builds_and_scores():
     for _ in range(5):
         env.hold()
     m = env.task.metrics()
-    assert m["progress"] == 0.0 and m["final_distance"] > 0.05
+    assert m["progress"] == 0.0 and m["cube_to_target"] > 0.05 and m["cube_in_target"] == 0
+
+
+def test_metrics_follow_the_robot():
+    """Contact time and distance metrics respond when the end effector is driven onto the sponge."""
+    env = sponge_env()
+    m, d = env.model, env.data
+    start = env.task.metrics()["eef_to_sponge"]
+    # Teleport the sponge between the right gripper's fingers and close them.
+    tcp = d.site("right_tcp").xpos.copy()
+    jnt = m.joint("sponge_free")
+    d.qpos[jnt.qposadr[0]: jnt.qposadr[0] + 3] = tcp
+    for _ in range(20):
+        env.step({"left": env.state()["left"], "right": np.r_[env.state()["right"][:6], 0.0]})
+    out = env.task.metrics()
+    assert out["eef_to_sponge"] < start and out["eef_to_sponge.min"] < 0.06
+    assert out["gripper_sponge_time"] > 0
+
+
+def test_fk_ik_round_trip():
+    env = sponge_env()
+    robot, d = env.robot, env.data
+    pos, _ = robot.fk(d, "right")
+    goal = pos + np.array([0.0, -0.10, -0.08])
+    q = robot.ik(d, "right", goal)
+    for _ in range(60):
+        env.step({"left": env.state()["left"], "right": np.r_[q, 1.0]})
+    reached, _ = robot.fk(d, "right")
+    assert np.linalg.norm(reached - goal) < 0.02
+    assert set(env.observe(render=False).sensors) >= {"right.eef_pos", "right.joint_vel"}
