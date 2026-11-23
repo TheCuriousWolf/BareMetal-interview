@@ -1,0 +1,12 @@
+# Stock YAM linear gripper: two fingers on parallel slides, one position actuator per finger.
+name: yam_linear
+mjcf: gripper.xml
+root_body: gripper
+tcp_site: tcp
+finger_bodies: [tip_left, tip_right]
+# Opening is reported and commanded as 0 (closed) .. 1 (open).
+joints: [finger_left, finger_right]
+actuators: [finger_left, finger_right]
+open_ctrl: 0.0475
+closed_ctrl: 0.0
+open_qpos_sum: 0.095

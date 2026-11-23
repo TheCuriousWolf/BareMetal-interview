@@ -1,0 +1,11 @@
+# Generic parallel-jaw gripper for robots that do not ship their own.
+name: parallel_jaw
+mjcf: gripper.xml
+root_body: gripper
+tcp_site: tcp
+finger_bodies: [finger_left_body, finger_right_body]
+joints: [finger_left, finger_right]
+actuators: [finger_left, finger_right]
+open_ctrl: 0.04
+closed_ctrl: 0.0
+open_qpos_sum: 0.08

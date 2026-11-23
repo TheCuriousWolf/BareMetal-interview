@@ -1,0 +1,26 @@
+# I2RT YAM 6-DoF arm. Everything robot-specific lives in this folder; configs/robots/*.yaml choose mounts and gripper.
+name: yam
+urdf: urdf/yam.urdf
+base_link: base_link
+flange_link: link_6
+joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+home: [0, 0, 0, 0, 0, 0]
+gravity_compensation: true   # the real arm runs gravity compensation in its controller
+joint_damping: 1.0
+joint_armature: 0.02
+# Position servo per joint (sim tuning from the Dream Labs YAM example).
+actuator: {kp: 120, kv: 12, force_limit: 40}
+# Where a gripper's root frame sits on the flange link.
+gripper_mount: {pos: [0, 0, 0], quat: [4.329780281177467e-17, 0.7071067811865476, -0.7071067811865475, -4.329780281177466e-17]}
+default_gripper: yam_linear
+# Cameras fixed to the robot. Pose in the flange frame, OpenGL convention, from the real station calibration.
+cameras:
+  wrist:
+    parent: link_6
+    calibration_file: calibration/sim-eval-yam.json
+    calibration_key: "{mount}_wrist"   # left_wrist / right_wrist
+rgba: [0.065, 0.07, 0.08, 1]   # the URDF's orange is a CAD placeholder; the real arm is dark grey
+# Adjacent base/shoulder parts share the revolute bearing; their hulls overlap.
+contact_excludes: [[base_link, link_1]]
+# Wrist links a mounted gripper may overlap (convex hulls of the link meshes are larger than the parts).
+gripper_exclude_links: [link_4, link_5, link_6]

@@ -1,0 +1,29 @@
+<mujoco model="parallel_jaw_gripper">
+  <!-- Generic two-finger parallel gripper. Convention shared by all grippers here: fingers extend along -z of the root body. -->
+  <worldbody>
+    <body name="gripper" gravcomp="1">
+      <inertial pos="0 0 -.04" mass=".35" diaginertia=".0004 .0004 .0003"/>
+      <geom name="palm" type="box" size=".04 .025 .02" pos="0 0 -.02" rgba=".2 .2 .22 1"/>
+      <body name="finger_left_body" pos="0 0 -.04" gravcomp="1">
+        <joint name="finger_left" type="slide" axis="0 1 0" range="0 .04" damping="1" armature=".01"/>
+        <inertial pos="0 .005 -.03" mass=".05" diaginertia=".00002 .00002 .00001"/>
+        <geom name="pad_left" type="box" size=".01 .005 .03" pos="0 .005 -.03" rgba=".3 .3 .33 1"
+              friction="2 .02 .002" condim="6" priority="1"/>
+      </body>
+      <body name="finger_right_body" pos="0 0 -.04" gravcomp="1">
+        <joint name="finger_right" type="slide" axis="0 -1 0" range="0 .04" damping="1" armature=".01"/>
+        <inertial pos="0 -.005 -.03" mass=".05" diaginertia=".00002 .00002 .00001"/>
+        <geom name="pad_right" type="box" size=".01 .005 .03" pos="0 -.005 -.03" rgba=".3 .3 .33 1"
+              friction="2 .02 .002" condim="6" priority="1"/>
+      </body>
+      <site name="tcp" pos="0 0 -.09" size=".004" rgba="0 1 0 0"/>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude body1="finger_left_body" body2="finger_right_body"/>
+  </contact>
+  <actuator>
+    <position name="finger_left" joint="finger_left" kp="400" kv="20" ctrlrange="0 .04" forcerange="-30 30"/>
+    <position name="finger_right" joint="finger_right" kp="400" kv="20" ctrlrange="0 .04" forcerange="-30 30"/>
+  </actuator>
+</mujoco>
