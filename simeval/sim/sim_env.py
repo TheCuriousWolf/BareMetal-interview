@@ -61,7 +61,8 @@ class SimEnv:
 
     def observe(self, render: bool = True) -> Observation:
         images = self.renderer.render(self.data) if render else {}
-        return Observation(images=images, state=self.state(), instruction=self.task.instruction, time=self.time)
+        return Observation(images=images, state=self.state(), instruction=self.task.instruction, time=self.time,
+                           sensors=self.robot.sensors(self.data), last_action=self.robot.last_action)
 
     def close(self) -> None:
         if self.renderer is not None:

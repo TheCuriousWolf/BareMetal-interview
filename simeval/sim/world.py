@@ -13,7 +13,8 @@ import numpy as np
 
 from ..paths import ROOT
 from .cameras import CameraSpec, add_calibrated_camera
-from .robot import Robot, spawn_robot
+from ..registry import resolve
+from .robot import spawn_robot
 
 
 def base_spec(physics: dict | None = None, lighting: dict | None = None) -> mujoco.MjSpec:
@@ -68,13 +69,14 @@ def add_fixed_cameras(spec: mujoco.MjSpec, robot_cfg: dict, jitter: dict | None 
     return cams
 
 
-def compose(robot_cfg: dict, task, variation: dict) -> tuple[mujoco.MjModel, Robot]:
+def compose(robot_cfg: dict, task, variation: dict) -> tuple[mujoco.MjModel, object]:
     """Build the full scene for one episode."""
     spec = base_spec(variation.get("physics"), variation.get("lighting"))
     cameras = add_fixed_cameras(spec, robot_cfg, variation.get("camera_jitter"))
     task.build(spec, variation)  # fixtures first: robots are mounted relative to the world, not to task bodies
     arms, arm_cams = spawn_robot(spec, robot_cfg)
-    robot = Robot(arms, cameras + arm_cams)
+    robot_class = resolve(robot_cfg.get("robot_class", "simeval.sim.robot:MujocoRobot"), {})
+    robot = robot_class(arms, cameras + arm_cams)
     model = spec.compile()
     robot.bind(model)
     return model, robot

@@ -24,6 +24,8 @@ class Observation:
     state: dict[str, np.ndarray]
     instruction: str
     time: float
+    sensors: dict[str, np.ndarray] = field(default_factory=dict)  # joint velocities, efforts, end-effector poses
+    last_action: dict[str, np.ndarray] | None = None
 
 
 @dataclass

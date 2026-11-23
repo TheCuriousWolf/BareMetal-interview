@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -157,13 +158,51 @@ def spawn_robot(spec: mujoco.MjSpec, robot_cfg: dict) -> tuple[list[ArmHandle], 
     return arms, cameras
 
 
-class Robot:
-    """Runtime view of the spawned arms over a compiled model."""
+class Robot(ABC):
+    """What the simulator, tasks and policies need from a robot. Override these for robots that config cannot
+    describe (coupled joints, mobile bases, dexterous hands); the default MujocoRobot covers URDF/MJCF arms."""
+
+    arms: dict[str, ArmHandle]  # by mount name
+    cameras: list[CameraSpec]
+    body_ids: set[int]  # every robot body
+    finger_ids: dict[str, set[int]]  # gripper finger bodies per arm
+
+    @abstractmethod
+    def bind(self, model: mujoco.MjModel) -> None: ...
+
+    @abstractmethod
+    def reset(self, data: mujoco.MjData) -> None: ...
+
+    @abstractmethod
+    def state(self, data: mujoco.MjData) -> dict[str, np.ndarray]:
+        """Per arm: joint positions then gripper opening (0 closed .. 1 open)."""
+
+    @abstractmethod
+    def apply(self, data: mujoco.MjData, targets: dict[str, np.ndarray]) -> dict[str, float]:
+        """Send absolute joint + gripper targets. Returns how far each arm's targets were clipped."""
+
+    @abstractmethod
+    def fk(self, data: mujoco.MjData, arm: str) -> tuple[np.ndarray, np.ndarray]:
+        """End-effector (TCP) position and quaternion in the world frame."""
+
+    @abstractmethod
+    def ik(self, data: mujoco.MjData, arm: str, pos, quat=None) -> np.ndarray:
+        """Joint positions that put the TCP at pos (and quat, if given)."""
+
+    def sensors(self, data: mujoco.MjData) -> dict[str, np.ndarray]:
+        """Extra readings a policy may use. Default: joint velocities and actuator efforts per arm."""
+        return {}
+
+    last_action: dict[str, np.ndarray] | None = None
+
+
+class MujocoRobot(Robot):
+    """Default robot: any arm described by robot_models/<name>/robot.yaml and spawned by spawn_robot()."""
 
     def __init__(self, arms: list[ArmHandle], cameras: list[CameraSpec]):
         self.arms = {a.mount: a for a in arms}
         self.cameras = cameras
-
+        self.last_action = None
     def bind(self, model: mujoco.MjModel) -> None:
         self.model = model
         prefixes = tuple(f"{m}_" for m in self.arms)
@@ -207,6 +246,7 @@ class Robot:
                 raise ValueError(f"{mount}: expected {arm.dof} finite values, got shape {target.shape}")
             lim = self.limits(mount)
             bounded = np.clip(target, lim[:, 0], lim[:, 1])
+            self.last_action = {**(self.last_action or {}), mount: bounded}
             clipped[mount] = float(np.abs(bounded - target).max())
             for a, v in zip(arm.actuators, bounded):
                 data.actuator(a).ctrl[0] = v
@@ -215,3 +255,45 @@ class Robot:
                 for a in arm.gripper_actuators:
                     data.actuator(a).ctrl[0] = ctrl
         return clipped
+
+    def fk(self, data, arm):
+        site = data.site(self.arms[arm].tcp_site)
+        quat = np.empty(4)
+        mujoco.mju_mat2Quat(quat, site.xmat)
+        return site.xpos.copy(), quat
+
+    def ik(self, data, arm, pos, quat=None, iters: int = 100, damping: float = 1e-3) -> np.ndarray:
+        """Damped least squares on a scratch copy of the state, from the current joints; respects joint limits."""
+        m, a = self.model, self.arms[arm]
+        scratch = mujoco.MjData(m)
+        scratch.qpos[:] = data.qpos
+        dofs = [m.joint(j).dofadr[0] for j in a.joints]
+        qadr = [m.joint(j).qposadr[0] for j in a.joints]
+        lim = self.limits(arm)[: len(a.joints)]
+        site = m.site(a.tcp_site).id
+        jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
+        for _ in range(iters):
+            mujoco.mj_kinematics(m, scratch)
+            mujoco.mj_comPos(m, scratch)
+            err = np.asarray(pos, float) - scratch.site_xpos[site]
+            mujoco.mj_jacSite(m, scratch, jp, jr, site)
+            J = jp[:, dofs]
+            if quat is not None:
+                cur = np.empty(4)
+                mujoco.mju_mat2Quat(cur, scratch.site_xmat[site])
+                dq = np.empty(3)
+                mujoco.mju_subQuat(dq, np.asarray(quat, float), cur)
+                err, J = np.r_[err, dq], np.r_[J, jr[:, dofs]]
+            if np.linalg.norm(err) < 1e-4:
+                break
+            step = J.T @ np.linalg.solve(J @ J.T + damping * np.eye(len(err)), err)
+            scratch.qpos[qadr] = np.clip(scratch.qpos[qadr] + step, lim[:, 0], lim[:, 1])
+        return scratch.qpos[qadr].copy()
+
+    def sensors(self, data):
+        out = {}
+        for mount, a in self.arms.items():
+            out[f"{mount}.joint_vel"] = np.array([data.joint(j).qvel[0] for j in a.joints])
+            out[f"{mount}.effort"] = np.array([data.actuator(x).force[0] for x in a.actuators])
+            out[f"{mount}.eef_pos"], out[f"{mount}.eef_quat"] = self.fk(data, mount)
+        return out
