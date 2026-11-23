@@ -1,0 +1,4 @@
+policy: hold
+name: hold
+max_chunk_rows: 24
+obs_period_s: 0.2

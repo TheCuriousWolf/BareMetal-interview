@@ -1,0 +1,6 @@
+policy: random
+name: random
+max_chunk_rows: 24
+obs_period_s: 0.2
+scale: 0.1
+seed: 0

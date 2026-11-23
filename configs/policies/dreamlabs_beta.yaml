@@ -1,0 +1,12 @@
+policy: dreamlabs                # registry name or "module:Class"
+name: dream-1-beta
+checkpoint: dreamlabs/dream-1-beta   # any Dream model id, e.g. a fine-tune
+api_key_env: DREAM_API_KEY       # read from the environment / .env, never stored in config
+key_style: station               # station (beta) | native (fine-tunes with an embodiment config)
+max_chunk_rows: 24               # rows executed per query (Dream returns up to 48); smaller = more closed-loop
+obs_period_s: 0.2                # frame spacing the model was trained on
+warmup_s: 1.8                    # fill the 9-frame history before the first query
+frame_size: [320, 176]
+jpeg_quality: 85
+camera_map: {top: top, left_wrist: left, right_wrist: right}   # robot camera role -> Dream camera
+arm_map: {left: l, right: r}                                   # robot mount -> Dream arm slot
