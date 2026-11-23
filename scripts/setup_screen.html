@@ -1,0 +1,222 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Evaluation setup</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 0; background: #f4f5f7; color: #1d1f23; }
+  header { background: #1d1f23; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 14px; }
+  section { background: #fff; border-radius: 8px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  section h2 { font-size: 14px; margin: 0 0 4px; }
+  section p.hint { margin: 0 0 10px; color: #666; font-size: 12px; }
+  .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+  .card { border: 1px solid #e2e4e8; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+  input, select, textarea, button { font: inherit; padding: 4px 6px; border: 1px solid #c9ccd2; border-radius: 4px; background: #fff; }
+  textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 12px; height: 92px; }
+  button { cursor: pointer; background: #eef0f3; }
+  button.primary { background: #2f6fde; border-color: #2f6fde; color: #fff; }
+  button.x { color: #b3261e; }
+  .name { width: 140px; } .num { width: 70px; }
+  #preview img { max-width: 100%; border-radius: 6px; }
+  #status { margin-left: auto; font-size: 12px; opacity: .85; }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Evaluation setup</h1>
+  <select id="taskSel"></select><button onclick="loadTask()">Load</button>
+  <span>Robot</span><select id="robotSel" onchange="refreshRefs()"></select>
+  <span>Save as</span><input id="taskFile" class="name" placeholder="my_task.yaml">
+  <button class="primary" onclick="save()">Save</button>
+  <span id="status"></span>
+</header>
+<main>
+  <section>
+    <h2>Task</h2>
+    <p class="hint">What the policy is told, which scene file this task uses, and how long an episode may run.</p>
+    <div class="row">Instruction <input id="instruction" style="flex:1"></div>
+    <div class="row">Scene file <input id="sceneFile" class="name"> Time limit (s) <input id="maxSeconds" class="num" type="number"></div>
+  </section>
+
+  <section id="preview">
+    <h2>Preview</h2>
+    <p class="hint">Builds the scene with the selected robot and shows the station camera.</p>
+    <div class="row">Seed <input id="seed" class="num" type="number" value="0">
+      Randomization <select id="level"><option>none</option><option>pose</option><option>full</option></select>
+      <button onclick="preview()">Preview scene</button></div>
+    <div id="previewImg"></div>
+  </section>
+
+  <section>
+    <h2>Scene: interactables</h2>
+    <p class="hint">Everything in the world. Pick a type, then edit its parameters (JSON). A value can also be
+      randomized: {"nominal": 0.04, "range": [0.03, 0.05], "group": "shape"}.</p>
+    <div id="objects"></div>
+    <div class="row"><select id="newObjType"></select><button onclick="addObject()">Add interactable</button></div>
+  </section>
+
+  <section>
+    <h2>Metrics</h2>
+    <p class="hint">Measured every step between robot parts and interactables. Each keeps its final, max and min value.</p>
+    <div id="metrics"></div>
+    <div class="row"><select id="newMetricType"></select><button onclick="addMetric()">Add metric</button></div>
+  </section>
+
+  <section>
+    <h2>Stages</h2>
+    <p class="hint">Sub-goals in task order. The time each is first met is recorded; "hold for" requires it to stay true.</p>
+    <div id="stages"></div>
+    <div class="row"><button onclick="addStage()">Add stage</button></div>
+  </section>
+
+  <section>
+    <h2>End conditions</h2>
+    <p class="hint">Success ends the episode when all its checks hold. Any failure check ends it as a failure.
+      Otherwise the episode ends at the time limit.</p>
+    <div class="card"><b>Success when all hold</b><div id="success"></div>
+      <button onclick="addCond(state.success)">Add check</button></div>
+    <div class="card"><b>Failure when any holds</b><div id="failure"></div>
+      <button onclick="addCond(state.failure, true)">Add failure</button></div>
+  </section>
+</main>
+
+<script>
+let catalog = {}, refs = [];
+let state = { task: {}, scene: { common: {}, objects: {} }, metrics: [], stages: [], success: [], failure: [] };
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => { const e = Object.assign(document.createElement(tag), attrs); kids.forEach(k => e.append(k)); return e; };
+const opts = (sel, values, current) => { sel.innerHTML = ""; values.forEach(v => sel.append(el("option", { value: v, textContent: v, selected: v === current }))); return sel; };
+const status = t => $("status").textContent = t;
+
+// Conditions are stored as "metric op number [and ...]" strings; the screen edits them as clause lists.
+const parse = s => (s || "").split(" and ").filter(Boolean).map(c => { const [m, op, v] = c.trim().split(/\s+/); return { m, op, v }; });
+const join = cl => cl.map(c => `${c.m} ${c.op} ${c.v}`).join(" and ");
+
+async function init() {
+  catalog = await (await fetch("/api/catalog")).json();
+  opts($("taskSel"), catalog.tasks, "sponge_scrub.yaml");
+  opts($("robotSel"), catalog.robots, "configs/robots/yam_bimanual.yaml");
+  opts($("newObjType"), Object.keys(catalog.object_types));
+  opts($("newMetricType"), Object.keys(catalog.metric_types));
+  await refreshRefs();
+  await loadTask();
+}
+
+async function refreshRefs() { refs = await (await fetch("/api/robot_refs?robot=" + $("robotSel").value)).json(); render(); }
+
+async function loadTask() {
+  const name = $("taskSel").value;
+  const { task, scene } = await (await fetch("/api/task?name=" + name)).json();
+  state.task = task; state.scene = scene;
+  state.metrics = Object.entries(task.metrics || {}).map(([name, cfg]) => ({ name, ...cfg }));
+  state.stages = (task.stages || []).map(s => ({ name: s.name, clauses: parse(s.when), hold_for: s.hold_for || 0 }));
+  const list = x => x == null ? [] : Array.isArray(x) ? x : [x];
+  state.success = list(task.end?.success).flatMap(parse);
+  state.failure = list(task.end?.failure).map(f => parse(f)[0]);
+  $("instruction").value = task.instruction || ""; $("sceneFile").value = task.scene || "";
+  $("maxSeconds").value = task.max_seconds || 60; $("taskFile").value = name;
+  render(); status("Loaded " + name);
+}
+
+const objectNames = () => Object.keys(state.scene.objects);
+const metricNames = () => state.metrics.map(m => m.name);
+
+function render() {
+  // Interactables
+  const box = $("objects"); box.innerHTML = "";
+  for (const [name, params] of Object.entries(state.scene.objects)) {
+    const { type, ...rest } = params;
+    const ta = el("textarea", { value: JSON.stringify(rest, null, 1) });
+    ta.onchange = () => { try { state.scene.objects[name] = { type, ...JSON.parse(ta.value) }; status(""); } catch (e) { status("Invalid JSON in " + name); } };
+    const nm = el("input", { value: name, className: "name" });
+    nm.onchange = () => { const o = state.scene.objects; const n = {}; for (const k in o) n[k === name ? nm.value : k] = o[k]; state.scene.objects = n; render(); };
+    const del = el("button", { textContent: "Remove", className: "x", onclick: () => { delete state.scene.objects[name]; render(); } });
+    box.append(el("div", { className: "card" }, el("div", { className: "row" }, nm, el("b", { textContent: type }), del), ta));
+  }
+  // Metrics
+  const targets = [...refs, ...objectNames()];
+  const mbox = $("metrics"); mbox.innerHTML = "";
+  state.metrics.forEach((m, i) => {
+    const row = el("div", { className: "row" });
+    const nm = el("input", { value: m.name, className: "name", onchange: e => { m.name = e.target.value; render(); } });
+    row.append(nm, el("b", { textContent: m.type }));
+    for (const field of catalog.metric_types[m.type]) {
+      let choices = field === "a" || field === "b" ? targets : field === "key" ? Object.values(catalog.value_keys).flat()
+        : field === "region" ? objectNames().filter(n => state.scene.objects[n].type === "region") : objectNames();
+      const s = opts(el("select"), choices, m[field]); s.onchange = e => m[field] = e.target.value;
+      if (!m[field]) m[field] = choices[0];
+      row.append(field, s);
+    }
+    row.append(el("button", { textContent: "×", className: "x", onclick: () => { state.metrics.splice(i, 1); render(); } }));
+    mbox.append(row);
+  });
+  // Stages
+  const sbox = $("stages"); sbox.innerHTML = "";
+  state.stages.forEach((st, i) => {
+    const card = el("div", { className: "card" });
+    card.append(el("div", { className: "row" },
+      el("input", { value: st.name, className: "name", onchange: e => st.name = e.target.value }),
+      "hold for (s)", el("input", { value: st.hold_for, className: "num", type: "number", step: "0.05", onchange: e => st.hold_for = +e.target.value }),
+      el("button", { textContent: "↑", onclick: () => { if (i) { [state.stages[i - 1], state.stages[i]] = [state.stages[i], state.stages[i - 1]]; render(); } } }),
+      el("button", { textContent: "Remove", className: "x", onclick: () => { state.stages.splice(i, 1); render(); } })));
+    st.clauses.forEach((c, j) => card.append(clauseRow(st.clauses, j)));
+    card.append(el("button", { textContent: "and …", onclick: () => { st.clauses.push({ m: metricNames()[0], op: ">", v: 0 }); render(); } }));
+    sbox.append(card);
+  });
+  // End conditions
+  for (const key of ["success", "failure"]) {
+    const b = $(key); b.innerHTML = "";
+    state[key].forEach((c, j) => b.append(clauseRow(state[key], j)));
+  }
+}
+
+function clauseRow(list, j) {
+  const c = list[j];
+  const m = opts(el("select"), metricNames(), c.m); m.onchange = e => c.m = e.target.value;
+  const op = opts(el("select"), ["<", "<=", ">", ">=", "=="], c.op); op.onchange = e => c.op = e.target.value;
+  const v = el("input", { value: c.v, className: "num", onchange: e => c.v = e.target.value });
+  return el("div", { className: "row" }, m, op, v,
+    el("button", { textContent: "×", className: "x", onclick: () => { list.splice(j, 1); render(); } }));
+}
+
+function addObject() {
+  const type = $("newObjType").value; let name = type, k = 1;
+  while (state.scene.objects[name]) name = type + (++k);
+  const defaults = structuredClone(catalog.object_types[type]);
+  const surfaces = objectNames().filter(n => state.scene.objects[n].type === "surface");
+  if ("surface" in defaults) defaults.surface = surfaces[0] || "";
+  if ("erased_by" in defaults) defaults.erased_by = objectNames().find(n => state.scene.objects[n].type === "sponge") || "";
+  state.scene.objects[name] = { type, ...defaults }; render();
+}
+function addMetric() { const type = $("newMetricType").value; state.metrics.push({ name: type + "_" + (state.metrics.length + 1), type }); render(); }
+function addStage() { state.stages.push({ name: "stage_" + (state.stages.length + 1), clauses: [{ m: metricNames()[0], op: ">", v: 0 }], hold_for: 0 }); render(); }
+function addCond(list) { list.push({ m: metricNames()[0], op: ">=", v: 0 }); render(); }
+
+function buildTask() {
+  const t = { ...state.task };
+  t.name = $("taskFile").value.replace(/\.yaml$/, "");
+  t.instruction = $("instruction").value; t.scene = $("sceneFile").value; t.max_seconds = +$("maxSeconds").value;
+  t.metrics = Object.fromEntries(state.metrics.map(({ name, ...cfg }) => [name, cfg]));
+  t.stages = state.stages.map(s => ({ name: s.name, when: join(s.clauses), ...(s.hold_for ? { hold_for: s.hold_for } : {}) }));
+  t.end = { success: join(state.success), failure: state.failure.map(c => join([c])) };
+  return t;
+}
+
+async function save() {
+  const r = await (await fetch("/api/save", { method: "POST", body: JSON.stringify({ task: buildTask(), scene: state.scene, task_file: $("taskFile").value }) })).json();
+  status(r.error || "Saved " + r.saved.join(", "));
+}
+
+async function preview() {
+  status("Building scene…");
+  const r = await fetch("/api/preview", { method: "POST", body: JSON.stringify({ task: buildTask(), scene: state.scene, robot: $("robotSel").value, seed: $("seed").value, level: $("level").value }) });
+  if (!r.ok) { status((await r.json()).error); return; }
+  $("previewImg").innerHTML = ""; $("previewImg").append(el("img", { src: URL.createObjectURL(await r.blob()) })); status("");
+}
+init();
+</script>
+</body>
+</html>
