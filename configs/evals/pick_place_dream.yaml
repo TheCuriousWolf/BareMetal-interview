@@ -1,0 +1,10 @@
+name: pick_place
+robot: configs/robots/yam_bimanual.yaml
+task: configs/tasks/pick_place.yaml
+policy: configs/policies/dreamlabs_beta.yaml
+episodes: 5
+seed: 2000
+level: pose
+latency_mode: hold
+control_hz: 20
+video: true

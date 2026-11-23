@@ -1,0 +1,15 @@
+# Bimanual YAM station. Swap robot_model / gripper / mounts to change the embodiment.
+robot_model: yam            # folder in robot_models/
+gripper: yam_linear         # folder in robot_models/grippers/
+mounts:                     # one entry per arm; names prefix every joint, site and camera of that arm
+  left:  {pos: [0.305, 0.24, 0.772], quat: [0.7071067811865476, 0, 0, -0.7071067811865476]}
+  right: {pos: [-0.305, 0.24, 0.772], quat: [0.7071067811865476, 0, 0, -0.7071067811865476]}
+# Station cameras fixed to the world (calibrated on the real YAM station).
+fixed_cameras:
+  top:
+    calibration_file: robot_models/yam/calibration/sim-eval-yam.json
+    calibration_key: top
+    world_rotation: [[0, 1, 0], [-1, 0, 0], [0, 0, 1]]   # station frame -> sim world
+    world_offset: [0, 0.4925, 0]
+    lower: 0.15            # scene-specific adjustment carried over from the Dream Labs sim
+    tilt_up_deg: 5.0

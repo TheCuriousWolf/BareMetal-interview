@@ -1,0 +1,13 @@
+# One YAM arm on the right mount, same station camera.
+robot_model: yam
+gripper: yam_linear
+mounts:
+  right: {pos: [-0.305, 0.24, 0.772], quat: [0.7071067811865476, 0, 0, -0.7071067811865476]}
+fixed_cameras:
+  top:
+    calibration_file: robot_models/yam/calibration/sim-eval-yam.json
+    calibration_key: top
+    world_rotation: [[0, 1, 0], [-1, 0, 0], [0, 0, 1]]
+    world_offset: [0, 0.4925, 0]
+    lower: 0.15
+    tilt_up_deg: 5.0
