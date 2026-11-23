@@ -1,0 +1,5 @@
+task: pick_place
+scene: table_pick_place.yaml
+instruction: "put the red cube on the blue circle"
+max_seconds: 60
+scene_overrides: {}

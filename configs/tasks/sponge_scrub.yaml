@@ -1,0 +1,5 @@
+task: sponge_scrub
+scene: counter_sponge.yaml
+instruction: "pick up the sponge and scrub the stain off the counter"
+max_seconds: 90
+scene_overrides: {}      # e.g. {sponge: {start_xy: {nominal: [-0.1, 0.05]}}}
