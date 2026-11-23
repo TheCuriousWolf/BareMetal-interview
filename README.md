@@ -11,6 +11,7 @@ python scripts/run_eval.py configs/evals/sponge_dream.yaml --set level=full epis
 python scripts/run_eval.py configs/evals/sponge_dream.yaml --set robot=configs/robots/yam_single.yaml
 python scripts/run_eval.py configs/evals/pick_place_dream.yaml --set task.scene_overrides.objects.cube.xy.nominal=[-0.1,0.0]
 python scripts/setup_screen.py                                                                 # http://localhost:8765
+python scripts/record_demo.py configs/evals/sponge_dream.yaml --seed 1004 --level pose        # annotated video
 ```
 
 Outputs land in `runs/<name>/`: `config.json` (everything that defined the run), one `episode_XXX.json` (metrics,
@@ -50,6 +51,7 @@ simeval/
   registry.py                 names -> classes; any "module:Class" also works
 scripts/run_eval.py           CLI
 scripts/setup_screen.py       setup screen: build a scene, define metrics / stages / end conditions, preview, save
+scripts/record_demo.py        annotated episode video: scene description card, overview + policy cameras, live stages and metrics
 tests/                        scoring and swap checks
 ```
 

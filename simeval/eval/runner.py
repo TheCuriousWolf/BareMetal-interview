@@ -30,7 +30,9 @@ def _tile(images: dict[str, np.ndarray], height: int = 180) -> np.ndarray:
 
 
 def run_episode(env, policy, seed: int, level: str, latency_mode: str = "hold", video_path: Path | None = None,
-                log=print) -> dict:
+                log=print, on_step=None) -> dict:
+    """Run one episode. `on_step(env, event)` is called after every control step (event: "warmup", "act"),
+    which is how recorders and live viewers attach without changing the loop."""
     task = env.task
     variation = env.reset(seed, level)
     policy.reset(task.instruction, {"arms": {m: a.dof for m, a in env.robot.arms.items()},
@@ -58,9 +60,12 @@ def run_episode(env, policy, seed: int, level: str, latency_mode: str = "hold", 
             executed.append(np.concatenate([targets[a] for a in sorted(targets)]))
         step += 1
         tick()
+        if on_step is not None:
+            on_step(env, "warmup" if step <= warmup_steps else "act")
 
+    warmup_steps = round(policy.spec.warmup_s * hz)
     tick()
-    for _ in range(round(policy.spec.warmup_s * hz)):
+    for _ in range(warmup_steps):
         advance()
     start_step = step
     outcome = "timeout"

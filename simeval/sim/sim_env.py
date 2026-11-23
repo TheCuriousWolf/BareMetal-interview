@@ -28,6 +28,7 @@ class SimEnv:
         self.close()
         sampler = Sampler(np.random.default_rng(seed), self.levels[level])
         variation = self.task.sample_variation(sampler)
+        self.variation = variation
         self.model, self.robot = compose(self.robot_cfg, self.task, variation)
         self.data = mujoco.MjData(self.model)
         self.robot.reset(self.data)

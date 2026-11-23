@@ -28,8 +28,8 @@ def base_spec(physics: dict | None = None, lighting: dict | None = None) -> mujo
     spec.option.iterations = 100
     spec.option.noslip_iterations = physics.get("noslip_iterations", 3)
     spec.memory = 256 * 1024 * 1024
-    spec.visual.global_.offwidth = 640
-    spec.visual.global_.offheight = 480
+    spec.visual.global_.offwidth = 1280  # room for overview renders; policy cameras stay 640x480
+    spec.visual.global_.offheight = 720
     spec.visual.quality.shadowsize = 4096
     spec.visual.quality.offsamples = 4
     spec.visual.headlight.ambient = [0.25] * 3
