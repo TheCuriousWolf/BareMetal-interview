@@ -109,7 +109,18 @@ def run_episode(env, policy, seed: int, level: str, latency_mode: str = "hold", 
         import imageio.v2 as imageio
 
         imageio.mimsave(video_path, frames, fps=int(round(1 / policy.spec.obs_period_s)) * 2, macro_block_size=1)
-    return {"seed": seed, "level": level, "outcome": outcome, "metrics": metrics, "variation": variation}
+    return {"seed": seed, "level": level, "score": simple_score(outcome, metrics), "outcome": outcome,
+            "metrics": metrics, "variation": variation}
+
+
+def simple_score(outcome: str, metrics: dict) -> dict:
+    """The one-line answer: did the task succeed, and how many of the stages we asked for were hit."""
+    stages = metrics.get("stage_times", {})
+    hit = [s for s, t in stages.items() if t is not None]
+    result = "SUCCESS" if outcome == "success" else "FAILURE"
+    reason = {"success": "task completed", "failed": "failure condition met", "timeout": "time limit reached"}
+    return {"result": result, "why": reason.get(outcome, outcome), "stages_hit": f"{len(hit)}/{len(stages)}",
+            "hit": hit, "missed": [s for s in stages if s not in hit]}
 
 
 def run_eval(env, policy, episodes: int, seed: int, level: str, out_dir: Path, latency_mode: str = "hold",
@@ -121,13 +132,22 @@ def run_eval(env, policy, episodes: int, seed: int, level: str, out_dir: Path, l
         log(f"  episode {ep + 1}/{episodes} seed={s} level={level}")
         r = run_episode(env, policy, s, level, latency_mode, out_dir / f"episode_{ep:03d}.mp4" if video else None, log)
         m = r["metrics"]
+        sc = r["score"]
+        log(f"    {sc['result']} ({sc['why']})  stages hit {sc['stages_hit']}: {', '.join(sc['hit']) or '-'}")
         log(f"    {r['outcome']}  progress={m['progress']:.2f} "
             f"stages={[k for k, v in m['stage_times'].items() if v is not None]} queries={m['queries']}")
         (out_dir / f"episode_{ep:03d}.json").write_text(json.dumps(r, indent=2, default=float))
         results.append(r)
     policy.close()
     env.close()
-    summary = {"policy": policy.describe(), "task": env.task.name, "level": level, "latency_mode": latency_mode,
+    n = len(results)
+    score = {
+        "successes": f"{sum(r['score']['result'] == 'SUCCESS' for r in results)}/{n}",
+        "average_stages_hit": f"{np.mean([len(r['score']['hit']) for r in results]):.1f}/{len(env.task.stages)}",
+        "per_episode": [f"seed {r['seed']}: {r['score']['result']}, stages {r['score']['stages_hit']}" for r in results],
+    }
+    summary = {"score": score, "policy": policy.describe(), "task": env.task.name, "level": level,
+               "latency_mode": latency_mode,
                **summarize(results, env.task.stages)}
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, default=float))
     return summary

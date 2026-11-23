@@ -76,8 +76,13 @@ def main():
           f"policy={policy.spec.name} | level={cfg['level']} | {cfg['episodes']} episodes -> {out}")
     summary = run_eval(env, policy, cfg["episodes"], cfg["seed"], cfg["level"], out,
                        cfg.get("latency_mode", "hold"), cfg.get("video", True))
-    print(json.dumps({k: summary[k] for k in ("success_rate", "success_ci95", "progress", "stage_reach_rate")},
-                     indent=2, default=float))
+    sc = summary["score"]
+    print(f"\nSCORE  successes {sc['successes']}  |  average stages hit {sc['average_stages_hit']}")
+    for line in sc["per_episode"]:
+        print("  " + line)
+    print("stage reached in % of episodes: "
+          + ", ".join(f"{k} {v:.0%}" for k, v in summary["stage_reach_rate"].items()))
+    print(f"details: {out}/summary.json")
 
 
 if __name__ == "__main__":
