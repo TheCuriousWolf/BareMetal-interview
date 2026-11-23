@@ -1,0 +1,31 @@
+# Example built only from existing interactable types: wipe a coffee spill, then put the sponge in its caddy.
+objects:
+  counter:
+    type: surface
+    pos: [0, -0.12, 0.73]
+    half_size: [0.65, 0.55, 0.03]
+    rgba: [0.55, 0.57, 0.60, 1]          # grey stone
+
+  sponge:
+    type: sponge
+    surface: counter
+    half_size: [0.045, 0.030, 0.0175]
+    xy: {nominal: [0.15, 0.06], jitter: [0.03, 0.03], group: pose}
+    yaw_deg: {nominal: 90, jitter: 20, group: pose}
+    rgba: [0.30, 0.55, 0.95, 1]          # blue sponge
+
+  coffee:
+    type: spill
+    surface: counter
+    erased_by: sponge
+    center_xy: {nominal: [-0.05, 0.0], jitter: [0.04, 0.03], group: pose}
+    radius: 0.05
+    rgba: [0.25, 0.15, 0.08, 0.95]
+    require_grasp: true
+
+  caddy:
+    type: region
+    surface: counter
+    center_xy: [-0.20, 0.08]
+    radius: 0.05
+    rgba: [0.9, 0.9, 0.2, 0.5]

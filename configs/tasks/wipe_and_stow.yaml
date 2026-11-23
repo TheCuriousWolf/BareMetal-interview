@@ -1,0 +1,22 @@
+name: wipe_and_stow
+scene: sink_counter.yaml
+instruction: "wipe up the coffee with the sponge, then put the sponge on the yellow circle"
+max_seconds: 120
+
+metrics:
+  eef_to_sponge:     {type: distance, a: robot.any.eef, b: sponge}
+  sponge_held:       {type: grasped, object: sponge}
+  touch_time:        {type: contact_time, a: robot.any.gripper, b: sponge}
+  coffee_cleaned:    {type: value, object: coffee, key: cleaned}
+  sponge_in_caddy:   {type: in_region, object: sponge, region: caddy}
+  sponge_height:     {type: height, object: sponge}
+  table_bumps:       {type: force, a: robot.all, b: counter}
+
+stages:
+  - {name: grasped,  when: sponge_held > 0}
+  - {name: wiped,    when: coffee_cleaned >= 0.9}
+  - {name: stowed,   when: sponge_in_caddy > 0 and sponge_held < 1, hold_for: 1.0}
+
+end:
+  success: coffee_cleaned >= 0.9 and sponge_in_caddy > 0 and sponge_held < 1
+  failure: [sponge_height < -0.05, table_bumps > 60]
